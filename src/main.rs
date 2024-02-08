@@ -21,6 +21,7 @@ fn count(index: &FMIndex<&Vec<u8>, &Vec<usize>, &Occ>, pattern: &[u8]) -> usize 
 
 fn main() {
     let cli = Command::new("total-string-frequency")
+        .arg_required_else_help(true)
         .arg(Arg::new("unitigs")
             .help("Fasta format")
             .short('u')
