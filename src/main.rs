@@ -31,39 +31,34 @@ fn generate_random_dna_string(length: usize, seed: u64) -> Vec<u8> {
         s.push(alphabet[(rng.next_u64() % 4) as usize]);
     }
     s
-    
 }
 
-fn main() {
+fn get_dollar_concatenation(db: &jseqio::seq_db::SeqDB) -> Vec<u8>{
+    let mut concat = Vec::<u8>::new();
+    for i in 0..db.sequence_count(){
+        let rec = db.get(i);
+        concat.extend(rec.seq);
+        concat.push(b'$');
+    }
+    concat
+}
 
-    let n = 1000_000_usize;
-    let seed = 1234;
-    let mut data = generate_random_dna_string(n, seed);
-
-    data.push(b'$'); // The BWT library needs this?
-
-    // Build the FM index
-    eprintln!("Building FM index");
-    let alphabet = dna::n_alphabet();
-    let sa = suffix_array(data.as_slice());
-    let bwt = bwt(data.as_slice(), &sa);
-    let less = less(&bwt, &alphabet);
-    let occ = Occ::new(&bwt, 3, &alphabet);
-    let index: FMIndex<&Vec<u8>, &Vec<usize>, &Occ> = FMIndex::new(&bwt, &less, &occ);
-    eprintln!("FM index built");
-
+// Returns pair (finimizer endpoint vector, finimizer length vector)
+fn get_finimizers(seq: &[u8], k: usize, index: &FMIndex<&Vec<u8>, &Vec<usize>, &Occ>) -> (Vec<usize>, Vec<usize>) {
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
-    let k = 63;
+    let n = seq.len();
     for i in 0..n-k+1{
-        let kmer = &data[i..i+k];
+        let kmer = &seq[i..i+k];
+        //println!("Processing {}", String::from_utf8(kmer.to_vec()).unwrap());
         let mut finimizer: Option<&[u8]> = None;
         let mut f_start = 0;
         let mut f_end = kmer.len();
         for start in 0..kmer.len(){
-            for end in start+1..kmer.len(){
+            for end in start+1..=kmer.len(){
                 let x = &kmer[start..end];
-                let freq = count(&index, x);
+                let freq = count(index, x);
+                //eprintln!("{} {} {}", start, end, freq);
                 if freq == 1 {
                     match finimizer{
                         None => {
@@ -96,12 +91,57 @@ fn main() {
             }
         }
 
-        println!("{}, {}, {}", f_end, String::from_utf8(kmer.to_vec()).unwrap(), String::from_utf8(finimizer.unwrap().to_vec()).unwrap());
+        //println!("{}, {}, {}", f_end, String::from_utf8(kmer.to_vec()).unwrap(), String::from_utf8(finimizer.unwrap().to_vec()).unwrap());
     }
 
     assert_eq!(sampled_endpoints.len(), lengths.len());
-    println!("{}/{}", sampled_endpoints.len(), n);
-    println!("Mean length: {}", lengths.iter().sum::<usize>() as f64 / lengths.len() as f64);
+
+    (sampled_endpoints, lengths)
+
+}
+
+fn main() {
+
+    // Read file path from argv
+    let filepath = std::env::args().nth(1).unwrap();
+    let k = std::env::args().nth(2).unwrap().parse::<usize>().unwrap();
+
+    let reader = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
+    let db = reader.into_db().unwrap();
+    let data = get_dollar_concatenation(&db);
+
+    /*
+    let n = 1000_000_usize;
+    let seed = 1234;
+    let mut data = generate_random_dna_string(n, seed);
+
+    data.push(b'$'); // The BWT library needs this?
+    */
+
+    // Build the FM index
+    eprintln!("Building FM index");
+    let alphabet = dna::n_alphabet();
+    let sa = suffix_array(data.as_slice());
+    let bwt = bwt(data.as_slice(), &sa);
+    let less = less(&bwt, &alphabet);
+    let occ = Occ::new(&bwt, 3, &alphabet);
+    let index: FMIndex<&Vec<u8>, &Vec<usize>, &Occ> = FMIndex::new(&bwt, &less, &occ);
+    eprintln!("FM index built");
+
+    let mut total_finimizer_count = 0_usize; // Number of endpoints that are at the end of a finimizer
+    let mut total_seq_len = 0_usize;
+    let mut total_finimizer_len = 0_usize;
+    for i in 0..db.sequence_count(){
+        let rec = db.get(i);
+        eprintln!("Processing sequence {} of length {} (total processed: {}, density : {})", i, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
+        let (ends, lengths) = get_finimizers(rec.seq, k, &index);
+        total_finimizer_count += ends.len();
+        total_seq_len += rec.seq.len();
+        total_finimizer_len += lengths.iter().sum::<usize>();
+    }
+
+    println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
+    println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
 
 
 }
