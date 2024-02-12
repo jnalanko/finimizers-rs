@@ -373,6 +373,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835a3dc7d1ec9e75e2b5fb4ba75396837112d2060b03f7d43bc1897c7f7211da"
 
 [[package]]
+name = "finimizer_experiment"
+version = "0.1.0"
+dependencies = [
+ "bio",
+ "clap",
+ "clap_complete",
+ "env_logger",
+ "jseqio",
+ "log",
+ "rand",
+]
+
+[[package]]
 name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -974,18 +987,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.48",
-]
-
-[[package]]
-name = "total-string-frequency"
-version = "0.1.0"
-dependencies = [
- "bio",
- "clap",
- "clap_complete",
- "env_logger",
- "jseqio",
- "log",
 ]
 
 [[package]]
