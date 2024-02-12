@@ -60,35 +60,22 @@ fn get_finimizers(seq: &[u8], k: usize, index: &FMIndex<&Vec<u8>, &Vec<usize>, &
                 let freq = count(index, x);
                 //eprintln!("{} {} {}", start, end, freq);
                 if freq == 1 {
-                    match finimizer{
-                        None => {
-                            finimizer = Some(x);
-                            f_start = i + start;
-                            f_end = i + end;
-                        },
-                        Some(cur) => {
-                            if x.len() < cur.len() || (x.len() == cur.len() && x < cur){
-                                finimizer = Some(x);
-                                f_start = i + start;
-                                f_end = i + end;
-                            }
-                        }
+                    if finimizer.is_none() || finimizer.is_some_and(
+                        |cur| x.len() < cur.len() || (x.len() == cur.len() && x < cur)
+                    ){
+                        finimizer = Some(x);
+                        f_start = i + start;
+                        f_end = i + end;
                     }
                     break; // No reason to check further endpoints because this one was unique already
                 }
             }
         }
-        match sampled_endpoints.last(){
-            Some(prev) => {
-                if *prev != f_end{
-                    sampled_endpoints.push(f_end);
-                    lengths.push(f_end - f_start);
-                }
-            },
-            None => {
-                sampled_endpoints.push(f_end);
-                lengths.push(f_end - f_start);
-            }
+
+        let last = sampled_endpoints.last();
+        if last.is_none() || last.is_some_and(|e| *e != f_end) {
+            sampled_endpoints.push(f_end);
+            lengths.push(f_end - f_start);
         }
 
         //println!("{}, {}, {}", f_end, String::from_utf8(kmer.to_vec()).unwrap(), String::from_utf8(finimizer.unwrap().to_vec()).unwrap());
