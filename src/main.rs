@@ -11,6 +11,14 @@ use rand::rngs::StdRng;
 use sbwt::sbwt::*;
 use sbwt::subsetrank::*;
 
+fn sbwt_count(index: &Sbwt::<MatrixRank>, pattern: &[u8]) -> usize {
+    // TODO: make sbwt search return a Rust interval
+    match index.search(&pattern){
+        Some((l,r)) => r-l,
+        None => 0,
+    }
+} 
+
 fn count(index: &FMIndex<&Vec<u8>, &Vec<usize>, &Occ>, pattern: &[u8]) -> usize {
     let res = index.backward_search(pattern.iter());
     let interval = match res {
@@ -46,7 +54,7 @@ fn get_dollar_concatenation(db: &jseqio::seq_db::SeqDB) -> Vec<u8>{
 }
 
 // Returns pair (finimizer endpoint vector, finimizer length vector)
-fn get_finimizers(seq: &[u8], k: usize, index: &FMIndex<&Vec<u8>, &Vec<usize>, &Occ>) -> (Vec<usize>, Vec<usize>) {
+fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>) -> (Vec<usize>, Vec<usize>) {
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
     let n = seq.len();
@@ -59,7 +67,7 @@ fn get_finimizers(seq: &[u8], k: usize, index: &FMIndex<&Vec<u8>, &Vec<usize>, &
         for start in 0..kmer.len(){
             for end in start+1..=kmer.len(){
                 let x = &kmer[start..end];
-                let freq = count(index, x);
+                let freq = sbwt_count(index, x);
                 //eprintln!("{} {} {}", start, end, freq);
                 if freq == 1 {
                     if finimizer.is_none() || finimizer.is_some_and(
@@ -96,24 +104,23 @@ fn main() {
     let k = std::env::args().nth(2).unwrap().parse::<usize>().unwrap();
 
     let reader = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
-
     let sbwt = Sbwt::<MatrixRank>::new(reader, k, 8, 4, true);
-
-/*
+   
     let mut total_finimizer_count = 0_usize; // Number of endpoints that are at the end of a finimizer
     let mut total_seq_len = 0_usize;
     let mut total_finimizer_len = 0_usize;
-    for i in 0..db.sequence_count(){
-        let rec = db.get(i);
-        eprintln!("Processing sequence {} of length {} (total processed: {}, density : {})", i, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
-        let (ends, lengths) = get_finimizers(rec.seq, k, &index);
+    let mut reader2 = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
+    let mut seq_id = 0_usize;
+    while let Some(rec) = reader2.read_next().unwrap(){
+        eprintln!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
+        let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt);
         total_finimizer_count += ends.len();
         total_seq_len += rec.seq.len();
         total_finimizer_len += lengths.iter().sum::<usize>();
+        seq_id += 1;
     }
 
     println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
     println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
-*/
 
 }
