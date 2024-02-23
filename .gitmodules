@@ -1,0 +1,3 @@
+[submodule "sbwt"]
+	path = sbwt
+	url = https://github.com/jnalanko/sbwt-rs
