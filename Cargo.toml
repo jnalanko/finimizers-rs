@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-jseqio = {path = "./jseqio"}
+jseqio = {git = "https://github.com/jnalanko/jseqio", rev = "d89c7240b0e4d1444f97ba198734824f830d74f3"}
 clap = { version = "4.0.26", features = ["derive"] }
 clap_complete = "4.0.6"
 log = "0.4.0"
