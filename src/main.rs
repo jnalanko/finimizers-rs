@@ -8,6 +8,8 @@ use jseqio::reader::SeqRecordProducer;
 use rand::seq::index::sample;
 use rand::{self, Rng, RngCore, SeedableRng};
 use rand::rngs::StdRng;
+use sbwt::sbwt::*;
+use sbwt::subsetrank::*;
 
 fn count(index: &FMIndex<&Vec<u8>, &Vec<usize>, &Occ>, pattern: &[u8]) -> usize {
     let res = index.backward_search(pattern.iter());
@@ -94,27 +96,10 @@ fn main() {
     let k = std::env::args().nth(2).unwrap().parse::<usize>().unwrap();
 
     let reader = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
-    let db = reader.into_db().unwrap();
-    let data = get_dollar_concatenation(&db);
 
-    /*
-    let n = 1000_000_usize;
-    let seed = 1234;
-    let mut data = generate_random_dna_string(n, seed);
+    let sbwt = Sbwt::<MatrixRank>::new(reader, k, 8, 4, true);
 
-    data.push(b'$'); // The BWT library needs this?
-    */
-
-    // Build the FM index
-    eprintln!("Building FM index");
-    let alphabet = dna::n_alphabet();
-    let sa = suffix_array(data.as_slice());
-    let bwt = bwt(data.as_slice(), &sa);
-    let less = less(&bwt, &alphabet);
-    let occ = Occ::new(&bwt, 3, &alphabet);
-    let index: FMIndex<&Vec<u8>, &Vec<usize>, &Occ> = FMIndex::new(&bwt, &less, &occ);
-    eprintln!("FM index built");
-
+/*
     let mut total_finimizer_count = 0_usize; // Number of endpoints that are at the end of a finimizer
     let mut total_seq_len = 0_usize;
     let mut total_finimizer_len = 0_usize;
@@ -129,6 +114,6 @@ fn main() {
 
     println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
     println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
-
+*/
 
 }
