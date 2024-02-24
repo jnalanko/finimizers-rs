@@ -13,23 +13,10 @@ use sbwt::subsetrank::*;
 
 fn sbwt_count(index: &Sbwt::<MatrixRank>, pattern: &[u8]) -> usize {
     // TODO: make sbwt search return a Rust interval
-    match index.search(&pattern){
-        Some((l,r)) => r-l,
+    match index.search(pattern){
+        Some(interval) => interval.len(),
         None => 0,
     }
-} 
-
-fn count(index: &FMIndex<&Vec<u8>, &Vec<usize>, &Occ>, pattern: &[u8]) -> usize {
-    let res = index.backward_search(pattern.iter());
-    let interval = match res {
-        BackwardSearchResult::Complete(sai) => Some(sai.lower..sai.upper),
-        BackwardSearchResult::Partial(sai, _l) => None,
-        BackwardSearchResult::Absent => None,
-    };
-
-    if let Some(I) = interval{
-        I.len()
-    } else { 0 }
 } 
 
 fn generate_random_dna_string(length: usize, seed: u64) -> Vec<u8> {
@@ -41,16 +28,6 @@ fn generate_random_dna_string(length: usize, seed: u64) -> Vec<u8> {
         s.push(alphabet[(rng.next_u64() % 4) as usize]);
     }
     s
-}
-
-fn get_dollar_concatenation(db: &jseqio::seq_db::SeqDB) -> Vec<u8>{
-    let mut concat = Vec::<u8>::new();
-    for i in 0..db.sequence_count(){
-        let rec = db.get(i);
-        concat.extend(rec.seq);
-        concat.push(b'$');
-    }
-    concat
 }
 
 // Returns pair (finimizer endpoint vector, finimizer length vector)
