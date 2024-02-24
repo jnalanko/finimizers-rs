@@ -111,7 +111,7 @@ fn main() {
     let mut seq_id = 0_usize;
     let mut lex_marks = bitvec![0; sbwt.n_sets()];
     while let Some(rec) = reader2.read_next().unwrap(){
-        eprintln!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
+        println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
         let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
         total_finimizer_count += ends.len();
         total_seq_len += rec.seq.len();
