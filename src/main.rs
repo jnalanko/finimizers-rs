@@ -104,7 +104,25 @@ fn main() {
     let k = std::env::args().nth(2).unwrap().parse::<usize>().unwrap();
 
     let reader = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
-    let sbwt = Sbwt::<MatrixRank>::new(reader, k, 8, 4, true);
+
+    // Choose the number of u64s in a k-mer based on the k
+    let sbwt = match k {
+        0..=32 => {
+            Sbwt::<MatrixRank>::new::<1>(reader, k, 8, 4, true)
+        }
+        33..=64 => {
+            Sbwt::<MatrixRank>::new::<2>(reader, k, 8, 4, true)
+        }
+        65..=96 => {
+            Sbwt::<MatrixRank>::new::<3>(reader, k, 8, 4, true)
+        }
+        97..=128 => {
+            Sbwt::<MatrixRank>::new::<4>(reader, k, 8, 4, true)
+        }
+        _ => {
+            panic!("k > 128 not supported");
+        }
+    };
    
     let mut total_finimizer_count = 0_usize; // Number of endpoints that are at the end of a finimizer
     let mut total_seq_len = 0_usize;
