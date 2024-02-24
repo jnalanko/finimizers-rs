@@ -12,7 +12,6 @@ use sbwt::sbwt::*;
 use sbwt::subsetrank::*;
 
 fn sbwt_count(index: &Sbwt::<MatrixRank>, pattern: &[u8]) -> usize {
-    // TODO: make sbwt search return a Rust interval
     match index.search(pattern){
         Some(interval) => interval.len(),
         None => 0,
