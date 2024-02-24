@@ -1,8 +1,3 @@
-use bio::alphabets::dna;
-use bio::data_structures::bwt::{bwt, less, Occ};
-use bio::data_structures::fmindex::{FMIndex, FMIndexable};
-use bio::data_structures::suffix_array::suffix_array;
-use bio::data_structures::fmindex::BackwardSearchResult;
 use clap::{Command, Arg};
 use jseqio::reader::SeqRecordProducer;
 use rand::seq::index::sample;
@@ -10,6 +5,7 @@ use rand::{self, Rng, RngCore, SeedableRng};
 use rand::rngs::StdRng;
 use sbwt::sbwt::*;
 use sbwt::subsetrank::*;
+use bitvec::prelude::*;
 
 fn sbwt_count(index: &Sbwt::<MatrixRank>, pattern: &[u8]) -> usize {
     match index.search(pattern){
@@ -29,10 +25,13 @@ fn generate_random_dna_string(length: usize, seed: u64) -> Vec<u8> {
     s
 }
 
-// Returns pair (finimizer endpoint vector, finimizer length vector)
-fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>) -> (Vec<usize>, Vec<usize>) {
+// Returns pair (finimizer endpoint vector, finimizer length vector
+// Marks the lex positions of the minimizers in the given bit vector lex_marks
+fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &mut BitVec) -> (Vec<usize>, Vec<usize>) {
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
+
+    // Bit set with k bits
     let n = seq.len();
     for i in 0..n-k+1{
         let kmer = &seq[i..i+k];
@@ -40,16 +39,22 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>) -> (Vec<usiz
         let mut finimizer: Option<&[u8]> = None;
         let mut f_start = 0;
         let mut f_end = kmer.len();
+        let mut lex: Option<usize> = None;
         for start in 0..kmer.len(){
             for end in start+1..=kmer.len(){
                 let x = &kmer[start..end];
-                let freq = sbwt_count(index, x);
+                let range = index.search(x);
+                let freq = match &range {
+                    Some(interval) => interval.len(),
+                    None => 0,
+                };
                 //eprintln!("{} {} {}", start, end, freq);
                 if freq == 1 {
                     if finimizer.is_none() || finimizer.is_some_and(
                         |cur| x.len() < cur.len() || (x.len() == cur.len() && x < cur)
                     ){
                         finimizer = Some(x);
+                        lex = Some(range.unwrap().start);
                         f_start = i + start;
                         f_end = i + end;
                     }
@@ -58,13 +63,12 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>) -> (Vec<usiz
             }
         }
 
+        lex_marks.set(lex.unwrap(), true); // Should always exist because a full k-mer has freq 1
         let last = sampled_endpoints.last();
         if last.is_none() || last.is_some_and(|e| *e != f_end) {
             sampled_endpoints.push(f_end);
             lengths.push(f_end - f_start);
         }
-
-        //println!("{}, {}, {}", f_end, String::from_utf8(kmer.to_vec()).unwrap(), String::from_utf8(finimizer.unwrap().to_vec()).unwrap());
     }
 
     assert_eq!(sampled_endpoints.len(), lengths.len());
@@ -105,15 +109,17 @@ fn main() {
     let mut total_finimizer_len = 0_usize;
     let mut reader2 = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
     let mut seq_id = 0_usize;
+    let mut lex_marks = bitvec![0; sbwt.n_sets()];
     while let Some(rec) = reader2.read_next().unwrap(){
         eprintln!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
-        let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt);
+        let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
         total_finimizer_count += ends.len();
         total_seq_len += rec.seq.len();
         total_finimizer_len += lengths.iter().sum::<usize>();
         seq_id += 1;
     }
 
+    println!("{} lex marks (DBG density {})", lex_marks.count_ones(), lex_marks.count_ones() as f64 / sbwt.n_sets() as f64);
     println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
     println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
 
