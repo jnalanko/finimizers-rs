@@ -95,6 +95,7 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
     let mut lengths = Vec::<usize>::new();
     let SFS = SS.shortest_freq_bound_suffixes(seq, 1);
 
+    
     for start in 0..seq.len()-k+1 {
         // Figure out the finimizer
 
@@ -120,6 +121,7 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
             lengths.push(SFS[best.2 as usize - 1].as_ref().unwrap().0); // -1: back to inclusive end for indexing SFS
         }
     }
+    
 
     assert_eq!(sampled_endpoints.len(), lengths.len());
 
@@ -169,15 +171,14 @@ fn main() {
         //println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
         //let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
         let (ends2, lengths2) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks);
-        //assert_eq!(ends, ends2);
-        //assert_eq!(lengths, lengths2);
         total_finimizer_count += ends2.len();
         total_seq_len += rec.seq.len();
         total_finimizer_len += lengths2.iter().sum::<usize>();
         total_kmers += std::cmp::max(rec.seq.len() as isize - k as isize + 1, 0) as usize;
         seq_id += 1;
     }
-    println!("{} k-mers queried at {} us/k-mer", total_kmers, start_time.duration_since(start_time).as_micros() as f64 / total_kmers as f64);
+    let now = std::time::Instant::now();
+    println!("{} k-mers queried at {} us/k-mer", total_kmers, now.duration_since(start_time).as_micros() as f64 / total_kmers as f64);
     println!("{} lex marks (DBG density {})", lex_marks.count_ones(), lex_marks.count_ones() as f64 / sbwt.n_sets() as f64);
     println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
     println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
