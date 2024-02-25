@@ -1,7 +1,6 @@
 use clap::{Command, Arg};
 use jseqio::reader::SeqRecordProducer;
-use rand::seq::index::sample;
-use rand::{self, Rng, RngCore, SeedableRng};
+use rand::{self, RngCore, SeedableRng};
 use rand::rngs::StdRng;
 use sbwt::sbwt::*;
 use sbwt::subsetrank::*;
@@ -128,6 +127,12 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
 }
 
 fn main() {
+
+    if std::env::var("RUST_LOG").is_err(){
+        std::env::set_var("RUST_LOG", "info");
+    }
+
+    env_logger::init();
 
     let cli = Command::new("finimizer-experiment")
         .arg_required_else_help(true)
