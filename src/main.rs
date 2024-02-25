@@ -25,6 +25,17 @@ fn generate_random_dna_string(length: usize, seed: u64) -> Vec<u8> {
     s
 }
 
+fn colex_smaller(a: &[u8], b: &[u8]) -> bool {
+    assert_eq!(a.len(), b.len());
+    let n = a.len();
+    for i in 0..n {
+        if a[n-1-i] < b[n-1-i] { return true; }
+        if a[n-1-i] > b[n-1-i] { return false; }
+    }
+
+    false
+}
+
 // Returns pair (finimizer endpoint vector, finimizer length vector
 // Marks the lex positions of the minimizers in the given bit vector lex_marks
 fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &mut BitVec) -> (Vec<usize>, Vec<usize>) {
@@ -52,7 +63,7 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
                 //eprintln!("{} {} {}", start, end, freq);
                 if freq == 1 {
                     if finimizer.is_none() || finimizer.is_some_and(
-                        |cur| x.len() < cur.len() || (x.len() == cur.len() && x < cur)
+                        |cur| x.len() < cur.len() || (x.len() == cur.len() && colex_smaller(x , cur))
                     ){
                         eprintln!("Found new best {} {} {}", String::from_utf8_lossy(x), start, end);
                         finimizer = Some(x);
