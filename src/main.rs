@@ -93,12 +93,9 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
     assert!(seq.len() >= k);
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
-    let MS = SS.matching_statistics(seq);
     let SFS = SS.shortest_freq_bound_suffixes(seq, 1);
 
     for start in 0..seq.len()-k+1 {
-        if MS[start+k-1].0 < k { continue } // This k-mer is not found
-
         // Figure out the finimizer
 
         let mut best = (usize::MAX, usize::MAX, -1_isize); // Length, colex, endpoint
@@ -164,9 +161,10 @@ fn main() {
     let mut reader2 = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
     let mut seq_id = 0_usize;
     let mut lex_marks = bitvec![0; sbwt.n_sets()];
+    let mut total_kmers = 0_usize;
     // Print current time
-    let now = std::time::Instant::now();
-    eprintln!("Starting finimizer search at {:?}", now);
+    let start_time = std::time::Instant::now();
+    println!("Starting finimizer search");
     while let Some(rec) = reader2.read_next().unwrap(){
         //println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
         //let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
@@ -176,11 +174,10 @@ fn main() {
         total_finimizer_count += ends2.len();
         total_seq_len += rec.seq.len();
         total_finimizer_len += lengths2.iter().sum::<usize>();
+        total_kmers += std::cmp::max(rec.seq.len() as isize - k as isize + 1, 0) as usize;
         seq_id += 1;
     }
-    let now = std::time::Instant::now();
-    eprintln!("Finished at {:?}", now);
-
+    println!("{} k-mers queried at {} us/k-mer", total_kmers, start_time.duration_since(start_time).as_micros() as f64 / total_kmers as f64);
     println!("{} lex marks (DBG density {})", lex_marks.count_ones(), lex_marks.count_ones() as f64 / sbwt.n_sets() as f64);
     println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
     println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
