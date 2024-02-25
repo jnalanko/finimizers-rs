@@ -88,7 +88,7 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
 }
 
 #[allow(clippy::needless_range_loop, non_snake_case)]
-fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : usize, lex_marks: &mut BitVec) -> (Vec<usize>, Vec<usize>) {
+fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : usize, lex_marks: &mut BitVec, finimizer_strings_out: &mut Option<impl std::io::Write>) -> (Vec<usize>, Vec<usize>) {
     assert!(seq.len() >= k);
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
@@ -109,8 +109,18 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
         assert!(best.2 >= 0); // Endpoint must be set by this point
         best.2 += 1; // Make the end exclusive
 
-        // Report the finimizer
 
+        // Write the finimizer string, if needed
+        if let Some(writer) = finimizer_strings_out.as_mut() {
+            if lex_marks.get(best.1).unwrap() == false { // First time seeing this
+                let (len, end) = (best.0 as isize, best.2 as isize); // length, exclusive end
+                writer.write_all(b">\n");
+                writer.write_all(&seq[(end-len) as usize .. end as usize]);
+                writer.write_all(b"\n");
+            }
+        }
+        
+        // Report the finimizer
         lex_marks.set(best.1, true);
 
         let last = sampled_endpoints.last();
@@ -142,6 +152,11 @@ fn main() {
             .help("Input fasta/fastq file")
             .value_parser(clap::value_parser!(std::path::PathBuf))
             .required(true))
+        .arg(Arg::new("finimizer-out")
+            .short('o')
+            .long("finimizer-out")
+            .help("Finimizer output fasta/fastq file")
+            .value_parser(clap::value_parser!(std::path::PathBuf)))
         .arg(Arg::new("k")
             .short('k')
             .help("k-mer k")
@@ -163,11 +178,13 @@ fn main() {
     let matches = cli.get_matches();
 
     let filepath = matches.get_one::<std::path::PathBuf>("input").unwrap();
+    let finimizer_outfile = matches.get_one::<std::path::PathBuf>("finimizer-out");
     let k = *matches.get_one::<usize>("k").unwrap();
     let nthreads = *matches.get_one::<usize>("threads").unwrap();
     let mem_gb= *matches.get_one::<usize>("memory").unwrap();
 
     let reader = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
+    let mut finimizer_out = finimizer_outfile.map(|f| std::io::BufWriter::new(std::fs::File::create(f).unwrap()));
 
     // Choose the number of u64s in a k-mer based on the k
     let (sbwt, lcs) = match k {
@@ -202,7 +219,7 @@ fn main() {
     while let Some(rec) = reader2.read_next().unwrap(){
         //println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
         //let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
-        let (ends2, lengths2) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks);
+        let (ends2, lengths2) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks, &mut finimizer_out);
         total_finimizer_count += ends2.len();
         total_seq_len += rec.seq.len();
         total_finimizer_len += lengths2.iter().sum::<usize>();
