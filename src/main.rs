@@ -120,7 +120,7 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
         let last = sampled_endpoints.last();
         if last.is_none() || last.is_some_and(|e| *e != best.2 as usize) {
             sampled_endpoints.push(best.2 as usize);
-            lengths.push(SFS[best.2 as usize].as_ref().unwrap().0);
+            lengths.push(SFS[best.2 as usize - 1].as_ref().unwrap().0); // -1: back to inclusive end for indexing SFS
         }
     }
 
