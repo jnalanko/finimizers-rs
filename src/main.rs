@@ -77,6 +77,47 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
 
 }
 
+#[allow(clippy::needless_range_loop, non_snake_case)]
+fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : usize, lex_marks: &mut BitVec) -> (Vec<usize>, Vec<usize>) {
+    assert!(seq.len() >= k);
+    let mut sampled_endpoints = Vec::<usize>::new();
+    let mut lengths = Vec::<usize>::new();
+    let MS = SS.matching_statistics(seq);
+    let SFS = SS.shortest_freq_bound_suffixes(seq, 1);
+
+    for start in 0..seq.len()-k+1 {
+        if MS[start+k-1].0 < k { continue } // This k-mer is not found
+
+        // Figure out the finimizer
+
+        let mut best = (usize::MAX, usize::MAX, -1_isize); // Length, colex, endpoint
+        for end in start..start+k {
+            if SFS[end].is_none() { continue } // No unique match ending here
+            let (len, I) = SFS[end].as_ref().unwrap(); // Length, interval
+            if *len > start + 1 { continue } // Shortest unique match not fit in this k-mer window
+            if (*len, I.start, end as isize) < best {
+                best = (*len, I.start, end as isize)
+            }
+        }
+        assert!(best.2 >= 0); // Endpoint must be set by this point
+
+        // Report the finimizer
+
+        lex_marks.set(best.1, true);
+
+        let last = sampled_endpoints.last();
+        if last.is_none() || last.is_some_and(|e| *e != best.2 as usize) {
+            sampled_endpoints.push(best.2 as usize);
+            lengths.push(SFS[best.2 as usize].as_ref().unwrap().0);
+        }
+    }
+
+    assert_eq!(sampled_endpoints.len(), lengths.len());
+
+    (sampled_endpoints, lengths)
+
+}
+
 fn main() {
 
     // Read file path from argv
@@ -86,18 +127,18 @@ fn main() {
     let reader = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
 
     // Choose the number of u64s in a k-mer based on the k
-    let sbwt = match k {
+    let (sbwt, lcs) = match k {
         0..=32 => {
-            Sbwt::<MatrixRank>::new::<1>(reader, k, 8, 4, true)
+            Sbwt::<MatrixRank>::new::<1>(reader, k, 8, 4, true, true)
         }
         33..=64 => {
-            Sbwt::<MatrixRank>::new::<2>(reader, k, 8, 4, true)
+            Sbwt::<MatrixRank>::new::<2>(reader, k, 8, 4, true, true)
         }
         65..=96 => {
-            Sbwt::<MatrixRank>::new::<3>(reader, k, 8, 4, true)
+            Sbwt::<MatrixRank>::new::<3>(reader, k, 8, 4, true, true)
         }
         97..=128 => {
-            Sbwt::<MatrixRank>::new::<4>(reader, k, 8, 4, true)
+            Sbwt::<MatrixRank>::new::<4>(reader, k, 8, 4, true, true)
         }
         _ => {
             panic!("k > 128 not supported");
