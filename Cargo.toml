@@ -11,7 +11,6 @@ sbwt = {path = "sbwt"}
 clap = { version = "4.0.26", features = ["derive"] }
 clap_complete = "4.0.6"
 log = "0.4.0"
-bio = "*"
 rand = "0.8"
 env_logger = "0.10.0"
 bitvec = "1.0.1"
