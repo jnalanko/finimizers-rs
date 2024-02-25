@@ -164,17 +164,22 @@ fn main() {
     let mut reader2 = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
     let mut seq_id = 0_usize;
     let mut lex_marks = bitvec![0; sbwt.n_sets()];
+    // Print current time
+    let now = std::time::Instant::now();
+    eprintln!("Starting finimizer search at {:?}", now);
     while let Some(rec) = reader2.read_next().unwrap(){
-        println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
-        let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
+        //println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
+        //let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
         let (ends2, lengths2) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks);
-        eprintln!("Ends1: {:?}", ends);
-        eprintln!("Ends2: {:?}", ends2);
-        total_finimizer_count += ends.len();
+        //assert_eq!(ends, ends2);
+        //assert_eq!(lengths, lengths2);
+        total_finimizer_count += ends2.len();
         total_seq_len += rec.seq.len();
-        total_finimizer_len += lengths.iter().sum::<usize>();
+        total_finimizer_len += lengths2.iter().sum::<usize>();
         seq_id += 1;
     }
+    let now = std::time::Instant::now();
+    eprintln!("Finished at {:?}", now);
 
     println!("{} lex marks (DBG density {})", lex_marks.count_ones(), lex_marks.count_ones() as f64 / sbwt.n_sets() as f64);
     println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
