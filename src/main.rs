@@ -6,12 +6,14 @@ use sbwt::sbwt::*;
 use sbwt::subsetrank::*;
 use bitvec::prelude::*;
 
+// Returns (endpoints, lengths, frequencies)
 #[allow(clippy::needless_range_loop, non_snake_case)]
-fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : usize, lex_marks: &mut BitVec, finimizer_strings_out: &mut Option<impl std::io::Write>) -> (Vec<usize>, Vec<usize>) {
+fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k: usize, t: usize, lex_marks: &mut BitVec, finimizer_strings_out: &mut Option<impl std::io::Write>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     assert!(seq.len() >= k);
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
-    let SFS = SS.shortest_freq_bound_suffixes(seq, 1);
+    let mut frequencies = Vec::<usize>::new();
+    let SFS = SS.shortest_freq_bound_suffixes(seq, t);
     
     for start in 0..seq.len()-k+1 {
         // Figure out the finimizer
@@ -45,13 +47,15 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
         let last = sampled_endpoints.last();
         if last.is_none() || last.is_some_and(|e| *e != best.2 as usize) {
             sampled_endpoints.push(best.2 as usize);
-            lengths.push(SFS[best.2 as usize - 1].as_ref().unwrap().0); // -1: back to inclusive end for indexing SFS
+            let (len, I) = SFS[best.2 as usize - 1].as_ref().unwrap(); // -1: back to inclusive end for indexing SFS
+            lengths.push(*len); // 
+            frequencies.push(I.len());
         }
     }
 
     assert_eq!(sampled_endpoints.len(), lengths.len());
 
-    (sampled_endpoints, lengths)
+    (sampled_endpoints, lengths, frequencies)
 
 }
 
@@ -82,9 +86,14 @@ fn main() {
             .help("k-mer k")
             .value_parser(clap::value_parser!(usize))
             .required(true))
-        .arg(Arg::new("threads")
-            .help("Number of threads to use")
+        .arg(Arg::new("t")
             .short('t')
+            .help("Frequency bound t")
+            .value_parser(clap::value_parser!(usize))
+            .default_value("1"))
+        .arg(Arg::new("threads")
+            .help("Number of parallel threads to use")
+            .short('p')
             .value_parser(clap::value_parser!(usize))
             .default_value("4")
             .long("threads"))
@@ -100,6 +109,7 @@ fn main() {
     let filepath = matches.get_one::<std::path::PathBuf>("input").unwrap();
     let finimizer_outfile = matches.get_one::<std::path::PathBuf>("finimizer-out");
     let k = *matches.get_one::<usize>("k").unwrap();
+    let t = *matches.get_one::<usize>("t").unwrap();
     let nthreads = *matches.get_one::<usize>("threads").unwrap();
     let mem_gb= *matches.get_one::<usize>("memory").unwrap();
 
@@ -132,20 +142,23 @@ fn main() {
     let mut reader2 = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
     let mut lex_marks = bitvec![0; sbwt.n_sets()];
     let mut total_kmers = 0_usize;
+    let mut total_freq = 0_usize;
     // Print current time
     let start_time = std::time::Instant::now();
     println!("Starting finimizer search");
     while let Some(rec) = reader2.read_next().unwrap(){
-        let (ends, lengths) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks, &mut finimizer_out);
+        let (ends, lengths, freqs) = get_streaming_finimizers(&SS, rec.seq, k, t, &mut lex_marks, &mut finimizer_out);
         total_finimizer_count += ends.len();
         total_seq_len += rec.seq.len();
         total_finimizer_len += lengths.iter().sum::<usize>();
         total_kmers += std::cmp::max(rec.seq.len() as isize - k as isize + 1, 0) as usize;
+        total_freq += freqs.iter().sum::<usize>();
     }
     let now = std::time::Instant::now();
     println!("{} k-mers queried at {} us/k-mer", total_kmers, now.duration_since(start_time).as_micros() as f64 / total_kmers as f64);
     println!("{} lex marks (DBG density {})", lex_marks.count_ones(), lex_marks.count_ones() as f64 / sbwt.n_sets() as f64);
     println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
     println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
+    println!("Mean frequency: {}", total_freq as f64 / total_finimizer_count as f64);
 
 }
