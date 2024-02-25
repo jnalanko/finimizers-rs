@@ -121,7 +121,6 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
             lengths.push(SFS[best.2 as usize - 1].as_ref().unwrap().0); // -1: back to inclusive end for indexing SFS
         }
     }
-    
 
     assert_eq!(sampled_endpoints.len(), lengths.len());
 
