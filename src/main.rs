@@ -32,10 +32,10 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
         // Write the finimizer string, if needed
         if let Some(writer) = finimizer_strings_out.as_mut() {
             if lex_marks.get(best.1).unwrap() == false { // First time seeing this
-                let (len, end) = (best.0 as isize, best.2 as isize); // length, exclusive end
-                writer.write_all(b">\n");
-                writer.write_all(&seq[(end-len) as usize .. end as usize]);
-                writer.write_all(b"\n");
+                let (len, end) = (best.0 as isize, best.2); // length, exclusive end
+                writer.write_all(b">\n").unwrap();
+                writer.write_all(&seq[(end-len) as usize .. end as usize]).unwrap();
+                writer.write_all(b"\n").unwrap();
             }
         }
         
@@ -55,6 +55,7 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
 
 }
 
+#[allow(non_snake_case)]
 fn main() {
 
     if std::env::var("RUST_LOG").is_err(){
@@ -129,21 +130,17 @@ fn main() {
     let mut total_seq_len = 0_usize;
     let mut total_finimizer_len = 0_usize;
     let mut reader2 = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
-    let mut seq_id = 0_usize;
     let mut lex_marks = bitvec![0; sbwt.n_sets()];
     let mut total_kmers = 0_usize;
     // Print current time
     let start_time = std::time::Instant::now();
     println!("Starting finimizer search");
     while let Some(rec) = reader2.read_next().unwrap(){
-        //println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
-        //let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
-        let (ends2, lengths2) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks, &mut finimizer_out);
-        total_finimizer_count += ends2.len();
+        let (ends, lengths) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks, &mut finimizer_out);
+        total_finimizer_count += ends.len();
         total_seq_len += rec.seq.len();
-        total_finimizer_len += lengths2.iter().sum::<usize>();
+        total_finimizer_len += lengths.iter().sum::<usize>();
         total_kmers += std::cmp::max(rec.seq.len() as isize - k as isize + 1, 0) as usize;
-        seq_id += 1;
     }
     let now = std::time::Instant::now();
     println!("{} k-mers queried at {} us/k-mer", total_kmers, now.duration_since(start_time).as_micros() as f64 / total_kmers as f64);
