@@ -44,6 +44,7 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
             for end in start+1..=kmer.len(){
                 let x = &kmer[start..end];
                 let range = index.search(x);
+                eprintln!("{} {} {} {:?}", String::from_utf8_lossy(kmer), start, end, range);
                 let freq = match &range {
                     Some(interval) => interval.len(),
                     None => 0,
@@ -53,6 +54,7 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
                     if finimizer.is_none() || finimizer.is_some_and(
                         |cur| x.len() < cur.len() || (x.len() == cur.len() && x < cur)
                     ){
+                        eprintln!("Found new best {} {} {}", String::from_utf8_lossy(x), start, end);
                         finimizer = Some(x);
                         lex = Some(range.unwrap().start);
                         f_start = i + start;
@@ -97,12 +99,13 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
         for end in start..start+k { // Inclusive end!
             if SFS[end].is_none() { continue } // No unique match ending here
             let (len, I) = SFS[end].as_ref().unwrap(); // Length, interval
-            if *len > end + 1 { continue } // Shortest unique match not fit in this k-mer window
+            if end + 1 < start + len { continue } // Shortest unique match not fit in this k-mer window (end - len + 1 < start)
             if (*len, I.start, end as isize) < best {
                 best = (*len, I.start, end as isize)
             }
         }
         assert!(best.2 >= 0); // Endpoint must be set by this point
+        best.2 += 1; // Make the end exclusive
 
         // Report the finimizer
 
