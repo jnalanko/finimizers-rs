@@ -94,7 +94,6 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
     let SFS = SS.shortest_freq_bound_suffixes(seq, 1);
-
     
     for start in 0..seq.len()-k+1 {
         // Figure out the finimizer
@@ -130,25 +129,54 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
 
 fn main() {
 
-    // Read file path from argv
-    let filepath = std::env::args().nth(1).unwrap();
-    let k = std::env::args().nth(2).unwrap().parse::<usize>().unwrap();
+    let cli = Command::new("finimizer-experiment")
+        .arg_required_else_help(true)
+        .arg(Arg::new("input")
+            .short('i')
+            .long("input")
+            .help("Input fasta/fastq file")
+            .value_parser(clap::value_parser!(std::path::PathBuf))
+            .required(true))
+        .arg(Arg::new("k")
+            .short('k')
+            .help("k-mer k")
+            .value_parser(clap::value_parser!(usize))
+            .required(true))
+        .arg(Arg::new("threads")
+            .help("Number of threads to use")
+            .short('t')
+            .value_parser(clap::value_parser!(usize))
+            .default_value("4")
+            .long("threads"))
+        .arg(Arg::new("memory")
+            .help("Memory budget in GB (not strictly enforced)")
+            .short('m')
+            .value_parser(clap::value_parser!(usize))
+            .default_value("8")
+            .long("mem-gb"));
+
+    let matches = cli.get_matches();
+
+    let filepath = matches.get_one::<std::path::PathBuf>("input").unwrap();
+    let k = *matches.get_one::<usize>("k").unwrap();
+    let nthreads = *matches.get_one::<usize>("threads").unwrap();
+    let mem_gb= *matches.get_one::<usize>("memory").unwrap();
 
     let reader = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
 
     // Choose the number of u64s in a k-mer based on the k
     let (sbwt, lcs) = match k {
         0..=32 => {
-            Sbwt::<MatrixRank>::new::<1>(reader, k, 8, 4, true, true)
+            Sbwt::<MatrixRank>::new::<1>(reader, k, mem_gb, nthreads, true, true)
         }
         33..=64 => {
-            Sbwt::<MatrixRank>::new::<2>(reader, k, 8, 4, true, true)
+            Sbwt::<MatrixRank>::new::<2>(reader, k, mem_gb, nthreads, true, true)
         }
         65..=96 => {
-            Sbwt::<MatrixRank>::new::<3>(reader, k, 8, 4, true, true)
+            Sbwt::<MatrixRank>::new::<3>(reader, k, mem_gb, nthreads, true, true)
         }
         97..=128 => {
-            Sbwt::<MatrixRank>::new::<4>(reader, k, 8, 4, true, true)
+            Sbwt::<MatrixRank>::new::<4>(reader, k, mem_gb, nthreads, true, true)
         }
         _ => {
             panic!("k > 128 not supported");
