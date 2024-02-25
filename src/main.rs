@@ -55,7 +55,6 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
             for end in start+1..=kmer.len(){
                 let x = &kmer[start..end];
                 let range = index.search(x);
-                eprintln!("{} {} {} {:?}", String::from_utf8_lossy(kmer), start, end, range);
                 let freq = match &range {
                     Some(interval) => interval.len(),
                     None => 0,
@@ -65,7 +64,6 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
                     if finimizer.is_none() || finimizer.is_some_and(
                         |cur| x.len() < cur.len() || (x.len() == cur.len() && colex_smaller(x , cur))
                     ){
-                        eprintln!("Found new best {} {} {}", String::from_utf8_lossy(x), start, end);
                         finimizer = Some(x);
                         lex = Some(range.unwrap().start);
                         f_start = i + start;
@@ -97,9 +95,6 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k : u
     let mut lengths = Vec::<usize>::new();
     let MS = SS.matching_statistics(seq);
     let SFS = SS.shortest_freq_bound_suffixes(seq, 1);
-
-    eprintln!("MS: {:?}", MS);
-    eprintln!("SFS: {:?}", SFS);
 
     for start in 0..seq.len()-k+1 {
         if MS[start+k-1].0 < k { continue } // This k-mer is not found
