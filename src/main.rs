@@ -31,6 +31,8 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
     let mut sampled_endpoints = Vec::<usize>::new();
     let mut lengths = Vec::<usize>::new();
 
+    eprintln!("Seq {}", String::from_utf8(seq.to_vec()).unwrap());
+
     // Bit set with k bits
     let n = seq.len();
     for i in 0..n-k+1{
@@ -44,6 +46,7 @@ fn get_finimizers(seq: &[u8], k: usize, index: &Sbwt::<MatrixRank>, lex_marks: &
             for end in start+1..=kmer.len(){
                 let x = &kmer[start..end];
                 let range = index.search(x);
+                eprintln!("{} {} {} {:?}", String::from_utf8(kmer.to_vec()).unwrap(), start, end, range);
                 let freq = match &range {
                     Some(interval) => interval.len(),
                     None => 0,
@@ -144,6 +147,7 @@ fn main() {
             panic!("k > 128 not supported");
         }
     };
+    let SS = StreamingSupport::new(&sbwt, lcs.unwrap());
    
     let mut total_finimizer_count = 0_usize; // Number of endpoints that are at the end of a finimizer
     let mut total_seq_len = 0_usize;
@@ -154,6 +158,8 @@ fn main() {
     while let Some(rec) = reader2.read_next().unwrap(){
         println!("Processing sequence {} of length {} (total processed: {}, density : {})", seq_id, rec.seq.len(), total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
         let (ends, lengths) = get_finimizers(rec.seq, k, &sbwt, &mut lex_marks);
+        let (ends2, lengths2) = get_streaming_finimizers(&SS, rec.seq, k,  &mut lex_marks);
+        eprintln!("Ends: {:?} {:?}", ends, ends2);
         total_finimizer_count += ends.len();
         total_seq_len += rec.seq.len();
         total_finimizer_len += lengths.iter().sum::<usize>();
