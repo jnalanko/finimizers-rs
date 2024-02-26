@@ -21,22 +21,22 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k: us
     for start in 0..seq.len()-k+1 {
         // Figure out the finimizer
 
-        let mut best = (usize::MAX, usize::MAX, -1_isize, 0_usize); // Length, colex, endpoint, freq
+        let mut best = (usize::MAX, usize::MAX, usize::MAX, -1_isize); // Length, freq, colex, endpoint
         for end in start..start+k { // Inclusive end!
             if SFS[end].is_none() { continue } // No unique match ending here
             let (len, I) = SFS[end].as_ref().unwrap(); // Length, interval
             if end + 1 < start + len { continue } // Shortest unique match not fit in this k-mer window (end - len + 1 < start)
-            if (*len, I.start, end as isize, I.len()) < best {
-                best = (*len, I.start, end as isize, I.len())
+            if (*len, I.len(), I.start, end as isize) < best {
+                best = (*len, I.len(), I.start, end as isize)
             }
         }
-        assert!(best.2 >= 0); // Endpoint must be set by this point
-        best.2 += 1; // Make the end exclusive
+        assert!(best.3 >= 0); // Endpoint must be set by this point
+        best.3 += 1; // Make the end exclusive
 
         // Write the finimizer string, if needed
         if let Some(writer) = finimizer_strings_out.as_mut() {
-            if lex_marks.get(best.1).unwrap() == false { // First time seeing this
-                let (len, end) = (best.0 as isize, best.2); // length, exclusive end
+            if lex_marks.get(best.2).unwrap() == false { // First time seeing this
+                let (len, end) = (best.0 as isize, best.3); // length, exclusive end
                 writer.write_all(b">\n").unwrap();
                 writer.write_all(&seq[(end-len) as usize .. end as usize]).unwrap();
                 writer.write_all(b"\n").unwrap();
@@ -44,16 +44,16 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k: us
         }
         
         // Report the finimizer
-        if lex_marks.get(best.1).unwrap() == false { // First time seeing this
-            new_frequencies.push(best.3); // Frequency
+        if lex_marks.get(best.2).unwrap() == false { // First time seeing this
+            new_frequencies.push(best.1); // Frequency
             new_lengths.push(best.0);
-            lex_marks.set(best.1, true);
+            lex_marks.set(best.2, true);
         }
 
         let last = finimizer_ranges.last();
-        if last.is_none() || last.is_some_and(|I| I.end != best.2 as usize) {
-            let (len, I) = SFS[best.2 as usize - 1].as_ref().unwrap(); // -1: back to inclusive end for indexing SFS
-            finimizer_ranges.push((best.2 - *len as isize) as usize .. best.2 as usize);
+        if last.is_none() || last.is_some_and(|I| I.end != best.3 as usize) {
+            let (len, I) = SFS[best.3 as usize - 1].as_ref().unwrap(); // -1: back to inclusive end for indexing SFS
+            finimizer_ranges.push((best.3 - *len as isize) as usize .. best.3 as usize);
         }
     }
 
