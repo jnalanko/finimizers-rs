@@ -6,30 +6,32 @@ use sbwt::sbwt::*;
 use sbwt::subsetrank::*;
 use bitvec::prelude::*;
 
-// Returns (endpoints, lengths, frequencies)
+// Returns a triple:
+// 1) A Vec of distinct ranges i..j such that seq[i..j) is a finimizer
+// 2) A Vec of lengths of finimizers that were seen for the first time in this sequence
+// 2) A Vec of frequencies of finimizers that were seen for the first time in this sequence
 #[allow(clippy::needless_range_loop, non_snake_case)]
-fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k: usize, t: usize, lex_marks: &mut BitVec, finimizer_strings_out: &mut Option<impl std::io::Write>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k: usize, t: usize, lex_marks: &mut BitVec, finimizer_strings_out: &mut Option<impl std::io::Write>) -> (Vec<std::ops::Range<usize>>, Vec<usize>, Vec<usize>) {
     assert!(seq.len() >= k);
-    let mut sampled_endpoints = Vec::<usize>::new();
-    let mut lengths = Vec::<usize>::new();
-    let mut frequencies = Vec::<usize>::new();
+    let mut finimizer_ranges = Vec::<std::ops::Range::<usize>>::new();
+    let mut new_frequencies = Vec::<usize>::new();
+    let mut new_lengths= Vec::<usize>::new();
     let SFS = SS.shortest_freq_bound_suffixes(seq, t);
     
     for start in 0..seq.len()-k+1 {
         // Figure out the finimizer
 
-        let mut best = (usize::MAX, usize::MAX, -1_isize); // Length, colex, endpoint
+        let mut best = (usize::MAX, usize::MAX, -1_isize, 0_usize); // Length, colex, endpoint, freq
         for end in start..start+k { // Inclusive end!
             if SFS[end].is_none() { continue } // No unique match ending here
             let (len, I) = SFS[end].as_ref().unwrap(); // Length, interval
             if end + 1 < start + len { continue } // Shortest unique match not fit in this k-mer window (end - len + 1 < start)
-            if (*len, I.start, end as isize) < best {
-                best = (*len, I.start, end as isize)
+            if (*len, I.start, end as isize, I.len()) < best {
+                best = (*len, I.start, end as isize, I.len())
             }
         }
         assert!(best.2 >= 0); // Endpoint must be set by this point
         best.2 += 1; // Make the end exclusive
-
 
         // Write the finimizer string, if needed
         if let Some(writer) = finimizer_strings_out.as_mut() {
@@ -42,20 +44,21 @@ fn get_streaming_finimizers(SS: &StreamingSupport<MatrixRank>, seq: &[u8], k: us
         }
         
         // Report the finimizer
-        lex_marks.set(best.1, true);
+        if lex_marks.get(best.1).unwrap() == false { // First time seeing this
+            new_frequencies.push(best.3); // Frequency
+            new_lengths.push(best.0);
+            lex_marks.set(best.1, true);
+        }
 
-        let last = sampled_endpoints.last();
-        if last.is_none() || last.is_some_and(|e| *e != best.2 as usize) {
-            sampled_endpoints.push(best.2 as usize);
+        let last = finimizer_ranges.last();
+        if last.is_none() || last.is_some_and(|I| I.end != best.2 as usize) {
             let (len, I) = SFS[best.2 as usize - 1].as_ref().unwrap(); // -1: back to inclusive end for indexing SFS
-            lengths.push(*len); // 
-            frequencies.push(I.len());
+            finimizer_ranges.push((best.2 - *len as isize) as usize .. best.2 as usize);
         }
     }
 
-    assert_eq!(sampled_endpoints.len(), lengths.len());
-
-    (sampled_endpoints, lengths, frequencies)
+    assert_eq!(new_lengths.len(), new_frequencies.len());
+    (finimizer_ranges, new_lengths, new_frequencies)
 
 }
 
@@ -137,28 +140,41 @@ fn main() {
     let SS = StreamingSupport::new(&sbwt, lcs.unwrap());
    
     let mut total_finimizer_count = 0_usize; // Number of endpoints that are at the end of a finimizer
-    let mut total_seq_len = 0_usize;
     let mut total_finimizer_len = 0_usize;
+
+    let mut total_distinct_finimizer_count = 0_usize;
+    let mut total_distinct_finimizer_len = 0_usize;
+    let mut total_distinct_finimizer_freq= 0_usize;
+
     let mut reader2 = jseqio::reader::DynamicFastXReader::from_file(&filepath).unwrap();
     let mut lex_marks = bitvec![0; sbwt.n_sets()];
+    let mut total_seq_len = 0_usize;
     let mut total_kmers = 0_usize;
-    let mut total_freq = 0_usize;
     // Print current time
     let start_time = std::time::Instant::now();
     println!("Starting finimizer search");
     while let Some(rec) = reader2.read_next().unwrap(){
-        let (ends, lengths, freqs) = get_streaming_finimizers(&SS, rec.seq, k, t, &mut lex_marks, &mut finimizer_out);
-        total_finimizer_count += ends.len();
         total_seq_len += rec.seq.len();
-        total_finimizer_len += lengths.iter().sum::<usize>();
         total_kmers += std::cmp::max(rec.seq.len() as isize - k as isize + 1, 0) as usize;
-        total_freq += freqs.iter().sum::<usize>();
+
+        let (text_ranges, new_lengths, new_freqs) = get_streaming_finimizers(&SS, rec.seq, k, t, &mut lex_marks, &mut finimizer_out);
+
+        total_finimizer_count += text_ranges.len();
+        total_finimizer_len += text_ranges.iter().fold(0_usize,|acc, R| acc + R.len());
+
+        total_distinct_finimizer_count += new_lengths.len();
+        total_distinct_finimizer_len += new_lengths.iter().sum::<usize>();
+        total_distinct_finimizer_freq += new_freqs.iter().sum::<usize>();
+
     }
     let now = std::time::Instant::now();
     println!("{} k-mers queried at {} us/k-mer", total_kmers, now.duration_since(start_time).as_micros() as f64 / total_kmers as f64);
     println!("{} lex marks (DBG density {})", lex_marks.count_ones(), lex_marks.count_ones() as f64 / sbwt.n_sets() as f64);
-    println!("{}/{} = {}", total_finimizer_count, total_seq_len, total_finimizer_count as f64 /  total_seq_len as f64);
-    println!("Mean length: {}", total_finimizer_len as f64 / total_finimizer_count as f64);
-    println!("Mean frequency: {}", total_freq as f64 / total_finimizer_count as f64);
+    println!("{}/{} = {} streaming density", total_finimizer_count, total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
+    println!("{} mean streaming frequency", total_distinct_finimizer_freq as f64 / total_seq_len as f64);
+    println!("{} mean streaming length", total_finimizer_len as f64 / total_finimizer_count as f64);
+    println!("{} mean distinct length", total_distinct_finimizer_len as f64 / total_distinct_finimizer_count as f64);
+    println!("{} mean distinct frequency", total_distinct_finimizer_freq as f64 / total_distinct_finimizer_count as f64);
+
 
 }
