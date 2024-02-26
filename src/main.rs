@@ -171,10 +171,9 @@ fn main() {
     println!("{} k-mers queried at {} us/k-mer", total_kmers, now.duration_since(start_time).as_micros() as f64 / total_kmers as f64);
     println!("{} lex marks (DBG density {})", lex_marks.count_ones(), lex_marks.count_ones() as f64 / sbwt.n_sets() as f64);
     println!("{}/{} = {} streaming density", total_finimizer_count, total_seq_len, total_finimizer_count as f64 / total_seq_len as f64);
-    println!("{} mean streaming frequency", total_distinct_finimizer_freq as f64 / total_seq_len as f64);
     println!("{} mean streaming length", total_finimizer_len as f64 / total_finimizer_count as f64);
-    println!("{} mean distinct length", total_distinct_finimizer_len as f64 / total_distinct_finimizer_count as f64);
     println!("{} mean distinct frequency", total_distinct_finimizer_freq as f64 / total_distinct_finimizer_count as f64);
+    println!("{} mean distinct length", total_distinct_finimizer_len as f64 / total_distinct_finimizer_count as f64);
 
 
 }
