@@ -1,0 +1,18 @@
+[package]
+name = "sbwt"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rayon = "1"
+num = "0.4"
+simple-sds = {path = "./simple-sds"}
+clap = "4.4"
+jseqio = {git = "https://github.com/jnalanko/jseqio", rev = "d89c7240b0e4d1444f97ba198734824f830d74f3"}
+env_logger = "0.10"
+log = "0.4"
+tempfile = "3.8"
+crossbeam = "0.5"
+read_exact = "0.0.1"
